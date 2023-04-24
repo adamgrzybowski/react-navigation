@@ -352,6 +352,12 @@ export default function useLinking(
       const route = findFocusedRoute(state);
       const path = getPathForRoute(route, state);
 
+      // Sometimes the onStateChagne is called two times with the same state.
+      // If the previous state path and the current path are the same, do nothing.
+      if (previousState && path === findFocusedRoute(previousState)?.path) {
+        return;
+      }
+
       previousStateRef.current = state;
       pendingPopStatePathRef.current = undefined;
 
