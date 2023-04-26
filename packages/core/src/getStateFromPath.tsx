@@ -24,6 +24,7 @@ type RouteConfig = {
   pattern: string;
   routeNames: string[];
   parse?: ParseConfig;
+  upScreen?: string;
 };
 
 type InitialRouteConfig = {
@@ -361,7 +362,8 @@ const createNormalizedConfigs = (
           routeNames,
           pattern!,
           config.path,
-          config.parse
+          config.parse,
+          config.upScreen
         )
       );
     }
@@ -400,7 +402,8 @@ const createConfigItem = (
   routeNames: string[],
   pattern: string,
   path: string,
-  parse?: ParseConfig
+  parse?: ParseConfig,
+  upScreen?: string
 ): RouteConfig => {
   // Normalize pattern to remove any leading, trailing slashes, duplicate slashes etc.
   pattern = pattern.split('/').filter(Boolean).join('/');
@@ -428,6 +431,7 @@ const createConfigItem = (
     // The routeNames array is mutated, so copy it to keep the current state
     routeNames: [...routeNames],
     parse,
+    upScreen,
   };
 };
 
@@ -469,35 +473,61 @@ const findInitialRoute = (
   return undefined;
 };
 
+const findUpRoutes = (
+  route: ParsedRoute,
+  flatConfig?: RouteConfig[]
+): ParsedRoute[] | undefined => {
+  const routes: ParsedRoute[] = [];
+
+  if (!flatConfig) return undefined;
+
+  let routeName = route.name;
+  let routeConfig: RouteConfig | undefined;
+
+  do {
+    // eslint-disable-next-line no-loop-func
+    routeConfig = flatConfig.find((config) => config.screen === routeName);
+    if (routeConfig?.upScreen) {
+      routes.push({ name: routeConfig.upScreen });
+      routeName = routeConfig.upScreen;
+    } else {
+      routeConfig = undefined;
+    }
+  } while (routeConfig?.upScreen);
+
+  console.log('found route', routeConfig);
+
+  return routes.length ? routes.reverse() : undefined;
+};
+
 // returns state object with values depending on whether
 // it is the end of state and if there is initialRoute for this level
 const createStateObject = (
   initialRoute: string | undefined,
+  upRoutes: ParsedRoute[] | undefined,
   route: ParsedRoute,
   isEmpty: boolean
 ): InitialState => {
+  const additionalRoutes = [];
+
+  if (initialRoute) {
+    additionalRoutes.push({ name: initialRoute });
+  }
+
+  if (upRoutes) {
+    additionalRoutes.push(...upRoutes);
+  }
+
   if (isEmpty) {
-    if (initialRoute) {
-      return {
-        index: 1,
-        routes: [{ name: initialRoute }, route],
-      };
-    } else {
-      return {
-        routes: [route],
-      };
-    }
+    return {
+      index: additionalRoutes.length > 0 ? additionalRoutes.length : undefined,
+      routes: [...additionalRoutes, route],
+    };
   } else {
-    if (initialRoute) {
-      return {
-        index: 1,
-        routes: [{ name: initialRoute }, { ...route, state: { routes: [] } }],
-      };
-    } else {
-      return {
-        routes: [{ ...route, state: { routes: [] } }],
-      };
-    }
+    return {
+      index: additionalRoutes.length > 0 ? additionalRoutes.length : undefined,
+      routes: [...additionalRoutes, { ...route, state: { routes: [] } }],
+    };
   }
 };
 
@@ -515,7 +545,12 @@ const createNestedStateObject = (
 
   parentScreens.push(route.name);
 
-  state = createStateObject(initialRoute, route, routes.length === 0);
+  state = createStateObject(
+    initialRoute,
+    undefined,
+    route,
+    routes.length === 0
+  );
 
   if (routes.length > 0) {
     let nestedState = state;
@@ -523,11 +558,14 @@ const createNestedStateObject = (
     while ((route = routes.shift() as ParsedRoute)) {
       initialRoute = findInitialRoute(route.name, parentScreens, initialRoutes);
 
+      const upRoutes = findUpRoutes(route, flatConfig);
+
       const nestedStateIndex =
         nestedState.index || nestedState.routes.length - 1;
 
       nestedState.routes[nestedStateIndex].state = createStateObject(
         initialRoute,
+        upRoutes,
         route,
         routes.length === 0
       );

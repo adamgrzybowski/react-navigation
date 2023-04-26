@@ -5,7 +5,7 @@ export default function validatePathConfig(config: any, root = true) {
   const validKeys = ['initialRouteName', 'screens'];
 
   if (!root) {
-    validKeys.push('path', 'exact', 'stringify', 'parse');
+    validKeys.push('path', 'exact', 'stringify', 'parse', 'upScreen');
   }
 
   const invalidKeys = Object.keys(config).filter(
