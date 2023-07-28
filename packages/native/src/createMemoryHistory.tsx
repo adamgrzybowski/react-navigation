@@ -1,7 +1,7 @@
 import type { NavigationState } from '@react-navigation/core';
 import { nanoid } from 'nanoid/non-secure';
 
-type HistoryRecord = {
+export type HistoryRecord = {
   // Unique identifier for this record to match it with window.history.state
   id: string;
   // Navigation state object for the history entry
@@ -47,6 +47,9 @@ export default function createMemoryHistory() {
   };
 
   const history = {
+    get items() {
+      return items;
+    },
     get index(): number {
       // We store an id in the state instead of an index
       // Index could get out of sync with in-memory values if page reloads

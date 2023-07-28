@@ -10,6 +10,7 @@ import {
 import isEqual from 'fast-deep-equal';
 import * as React from 'react';
 
+import type { HistoryRecord } from './createMemoryHistory';
 import createMemoryHistory from './createMemoryHistory';
 import ServerContext from './ServerContext';
 import type { LinkingOptions } from './types';
@@ -95,6 +96,41 @@ let linkingHandlers: Symbol[] = [];
 
 type Options = LinkingOptions<ParamListBase> & {
   independent?: boolean;
+};
+
+const findFocusedRouteKey = (state: NavigationState) => {
+  // @ts-ignore
+  return findFocusedRoute(state)?.key;
+};
+
+const getAllStateKeys = (state: NavigationState) => {
+  let current = state;
+  const keys: string[] = [];
+
+  if (current.routes) {
+    for (let route of current.routes) {
+      keys.push(route.key);
+      if (route.state) {
+        // @ts-ignore
+        keys.push(...getAllStateKeys(route.state));
+      }
+    }
+  }
+  return keys;
+};
+
+const getStaleHistoryDiff = (
+  items: HistoryRecord[],
+  newState: NavigationState
+) => {
+  const newStateKeys = getAllStateKeys(newState);
+  for (let i = items.length - 1; i >= 0; i--) {
+    const itemFocusedKey = findFocusedRouteKey(items[i].state);
+    if (newStateKeys.includes(itemFocusedKey)) {
+      return items.length - i - 1;
+    }
+  }
+  return -1;
 };
 
 export default function useLinking(
@@ -399,7 +435,18 @@ export default function useLinking(
           }
         } else {
           // If history length is unchanged, we want to replaceState
-          history.replace({ path, state });
+          // and remove any entries from history which focued route no longer exists in state
+          // That may happen if we replace a whole navigator.
+          const staleHistoryDiff = getStaleHistoryDiff(
+            history.items.slice(0, history.index + 1),
+            state
+          );
+          if (staleHistoryDiff <= 0) {
+            history.replace({ path, state });
+          } else {
+            await history.go(-staleHistoryDiff);
+            history.push({ path, state });
+          }
         }
       } else {
         // If no common navigation state was found, assume it's a replace
