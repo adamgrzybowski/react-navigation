@@ -133,6 +133,33 @@ const getStaleHistoryDiff = (
   return -1;
 };
 
+const getHistoryDeltaByKeys = (
+  focusedState: NavigationState,
+  previousFocusedState: NavigationState
+) => {
+  const focusedStateKeys = focusedState.routes.map((r) => r.key);
+  const previousFocusedStateKeys = previousFocusedState.routes.map(
+    (r) => r.key
+  );
+
+  const minLength = Math.min(
+    focusedStateKeys.length,
+    previousFocusedStateKeys.length
+  );
+
+  let matchingKeys = 0;
+
+  for (let i = 0; i < minLength; i++) {
+    if (focusedStateKeys[i] === previousFocusedStateKeys[i]) {
+      matchingKeys++;
+    } else {
+      break;
+    }
+  }
+
+  return -(previousFocusedStateKeys.length - matchingKeys);
+};
+
 export default function useLinking(
   ref: React.RefObject<NavigationContainerRef<ParamListBase>>,
   {
@@ -407,6 +434,12 @@ export default function useLinking(
             ? previousFocusedState.history.length
             : previousFocusedState.routes.length);
 
+        // The historyDelta and historyDeltaByKeys may differ if the new state has an entry that didn't exist in previous state
+        const historyDeltaByKeys = getHistoryDeltaByKeys(
+          focusedState,
+          previousFocusedState
+        );
+
         if (historyDelta > 0) {
           // If history length is increased, we should pushState
           // Note that path might not actually change here, for example, drawer open should pushState
@@ -421,15 +454,19 @@ export default function useLinking(
             if (nextIndex !== -1 && nextIndex < currentIndex) {
               // An existing entry for this path exists and it's less than current index, go back to that
               await history.go(nextIndex - currentIndex);
+              history.replace({ path, state });
             } else {
               // We couldn't find an existing entry to go back to, so we'll go back by the delta
               // This won't be correct if multiple routes were pushed in one go before
               // Usually this shouldn't happen and this is a fallback for that
-              await history.go(historyDelta);
-            }
+              await history.go(historyDeltaByKeys);
 
-            // Store the updated state as well as fix the path if incorrect
-            history.replace({ path, state });
+              if (historyDeltaByKeys + 1 === historyDelta) {
+                history.push({ path, state });
+              } else {
+                history.replace({ path, state });
+              }
+            }
           } catch (e) {
             // The navigation was interrupted
           }
