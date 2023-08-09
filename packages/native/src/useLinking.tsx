@@ -12,6 +12,7 @@ import * as React from 'react';
 
 import type { HistoryRecord } from './createMemoryHistory';
 import createMemoryHistory from './createMemoryHistory';
+import { findFocusedRouteKey } from './findFocusedRouteKey';
 import ServerContext from './ServerContext';
 import type { LinkingOptions } from './types';
 
@@ -96,11 +97,6 @@ let linkingHandlers: Symbol[] = [];
 
 type Options = LinkingOptions<ParamListBase> & {
   independent?: boolean;
-};
-
-const findFocusedRouteKey = (state: NavigationState) => {
-  // @ts-ignore
-  return findFocusedRoute(state)?.key;
 };
 
 const getAllStateKeys = (state: NavigationState) => {
@@ -447,7 +443,7 @@ export default function useLinking(
         } else if (historyDelta < 0) {
           // If history length is decreased, i.e. entries were removed, we want to go back
 
-          const nextIndex = history.backIndex({ path });
+          const nextIndex = history.backIndex({ path, state });
           const currentIndex = history.index;
 
           try {

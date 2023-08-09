@@ -1,6 +1,8 @@
 import type { NavigationState } from '@react-navigation/core';
 import { nanoid } from 'nanoid/non-secure';
 
+import { findFocusedRouteKey } from './findFocusedRouteKey';
+
 export type HistoryRecord = {
   // Unique identifier for this record to match it with window.history.state
   id: string;
@@ -68,12 +70,15 @@ export default function createMemoryHistory() {
       return items[index];
     },
 
-    backIndex({ path }: { path: string }) {
+    backIndex({ path, state }: { path: string; state: NavigationState }) {
       // We need to find the index from the element before current to get closest path to go back to
       for (let i = index - 1; i >= 0; i--) {
         const item = items[i];
 
-        if (item.path === path) {
+        if (
+          item.path === path &&
+          findFocusedRouteKey(item.state) === findFocusedRouteKey(state)
+        ) {
           return i;
         }
       }
