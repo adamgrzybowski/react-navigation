@@ -243,11 +243,19 @@ export default function useLinking(
             navigation.resetRoot(state);
           }
         } else {
-          navigation.resetRoot(state);
+          // Using a partial state without the root key will make the saved states unusable
+          const key = navigation.getRootState().key;
+          navigation.resetRoot({ key, ...state });
         }
       } else {
         // if current path didn't return any state, we should revert to initial state
-        navigation.resetRoot(state);
+        navigation.resetRoot();
+      }
+
+      // If the record doesn't have saved state, update it with the current one.
+      // The states are lost after reloading the page.
+      if (record && !record.state) {
+        history.updateState(navigation.getRootState());
       }
     });
   }, [enabled, history, ref]);
@@ -321,6 +329,12 @@ export default function useLinking(
       const route = findFocusedRoute(state);
       const path = getPathForRoute(route, state);
 
+      // Sometimes the onStateChagne is called two times with the same state.
+      // If the previous state path and the current path are the same, do nothing.
+      if (previousState && path === findFocusedRoute(previousState)?.path) {
+        return;
+      }
+
       previousStateRef.current = state;
       pendingPopStatePathRef.current = undefined;
 
@@ -333,13 +347,13 @@ export default function useLinking(
         state
       );
 
-      if (
-        previousFocusedState &&
-        focusedState &&
-        // We should only handle push/pop if path changed from what was in last `popstate`
-        // Otherwise it's likely a change triggered by `popstate`
-        path !== pendingPath
-      ) {
+      // We should only handle push/pop if path changed from what was in last `popstate`
+      // Otherwise it's likely a change triggered by `popstate`
+      if (path === pendingPath) {
+        return;
+      }
+
+      if (previousFocusedState && focusedState) {
         const historyDelta =
           (focusedState.history
             ? focusedState.history.length
@@ -368,10 +382,8 @@ export default function useLinking(
               // An existing entry for this path exists and it's less than current index, go back to that
               await history.go(nextIndex - currentIndex);
             } else {
-              // We couldn't find an existing entry to go back to, so we'll go back by the delta
-              // This won't be correct if multiple routes were pushed in one go before
-              // Usually this shouldn't happen and this is a fallback for that
-              await history.go(historyDelta);
+              // We couldn't find an existing entry to go back to, so we'll do a replace.
+              history.replace({ path, state });
             }
 
             // Store the updated state as well as fix the path if incorrect
